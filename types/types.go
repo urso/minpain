@@ -1,6 +1,7 @@
 package types
 
 type Type interface {
+	Extends() Type
 }
 
 type Class interface {
@@ -54,3 +55,5 @@ type Method interface {
 type Array struct {
 	Elt Type
 }
+
+func (t *Array) Extends() Type { return Def }

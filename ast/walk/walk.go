@@ -54,7 +54,6 @@ func walkChildren(node ast.Node, v Visitor) {
 		walkExprs(v, n.Vars)
 	case *ast.FuncDecl:
 		Walk(n.Ret, v)
-		Walk(n.Name, v)
 		Walk(n.Body, v)
 
 	// expressions
@@ -83,14 +82,12 @@ func walkChildren(node ast.Node, v Visitor) {
 		if n.Kind == ast.CallMethod {
 			Walk(n.Value, v)
 		}
-		Walk(n.ID, v)
 		walkExprs(v, n.Args)
 	case *ast.NewArray:
 		Walk(n.Typ, v)
 		walkExprs(v, n.Init)
 	case *ast.FieldAccess:
 		Walk(n.Value, v)
-		Walk(n.ID, v)
 	case *ast.IdxAccess:
 		Walk(n.Value, v)
 	case *ast.Access:
@@ -98,7 +95,6 @@ func walkChildren(node ast.Node, v Visitor) {
 		Walk(n.Accessor, v)
 	case *ast.Ref:
 		Walk(n.Value, v)
-		Walk(n.ID, v)
 	case *ast.Lambda:
 		Walk(n.Body, v)
 
@@ -114,7 +110,6 @@ func walkChildren(node ast.Node, v Visitor) {
 		}
 	case *ast.Trap:
 		Walk(n.Type, v)
-		Walk(n.ID, v)
 		Walk(n.Block, v)
 	case *ast.IfStmt:
 		Walk(n.Cond, v)
@@ -131,7 +126,6 @@ func walkChildren(node ast.Node, v Visitor) {
 		Walk(n.Body, v)
 	case *ast.EachLoop:
 		Walk(n.Type, v)
-		Walk(n.ID, v)
 		Walk(n.Expr, v)
 		Walk(n.Body, v)
 

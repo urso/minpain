@@ -140,6 +140,7 @@ const (
 	OpClassBool
 	OpClassCmp
 	OpClassOther
+	OPClassMask = 0xff00
 
 	// arithmetic
 

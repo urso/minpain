@@ -5,9 +5,11 @@ type Primitive interface {
 }
 
 type primType struct {
-	bits  uint8
-	float bool
+	bits    uint8
+	extends Type
 }
+
+type constType struct{}
 
 type voidType struct{}
 
@@ -18,17 +20,66 @@ type stringType struct {
 }
 
 var (
-	Void Type = &voidType{}
-	Def  Type = &defType{}
+	Void      Type = &voidType{}
+	Def       Type = &defType{}
+	Null      Type = Def
+	Exception Type = Def
 
-	Bool   Primitive = &primType{bits: 1}
-	Byte   Primitive = &primType{bits: 8}
-	Short  Primitive = &primType{bits: 16}
-	Int    Primitive = &primType{bits: 32}
-	Long   Primitive = &primType{bits: 64}
-	Float  Primitive = &primType{bits: 32, float: true}
-	Double Primitive = &primType{bits: 64, float: true}
+	Bool Primitive = &primType{bits: 1}
+
+	Numeric Primitive = &primType{bits: 0xff}
+	Decimal Primitive = &primType{bits: 0xff, extends: Numeric}
+	Byte    Primitive = &primType{extends: Numeric, bits: 8}
+	Short   Primitive = &primType{extends: Numeric, bits: 16}
+	Int     Primitive = &primType{extends: Numeric, bits: 32}
+	Long    Primitive = &primType{extends: Numeric, bits: 64}
+	Float   Primitive = &primType{extends: Decimal, bits: 32}
+	Double  Primitive = &primType{extends: Decimal, bits: 64}
 
 	String Type = &stringType{isRegex: false}
 	Regex  Type = &stringType{isRegex: true}
 )
+
+func (_ *voidType) Extends() Type {
+	return nil
+}
+
+func (_ *defType) Extends() Type {
+	return nil
+}
+
+func (p *primType) Extends() Type {
+	return p.extends
+}
+
+func (s *stringType) Extends() Type {
+	return Def
+}
+
+func IsInteger(t Type) bool {
+	return IsNumeric(t) && !IsDecimal(t)
+}
+
+func IsDecimal(t Type) bool {
+	return checkExtends(isType(Decimal), t)
+}
+
+func IsNumeric(t Type) bool {
+	return checkExtends(isType(Numeric), t)
+}
+
+func isType(t Type) func(Type) bool {
+	return func(in Type) bool {
+		return t == in
+	}
+}
+
+func checkExtends(pred func(Type) bool, in Type) bool {
+	if pred(in) {
+		return true
+	}
+	if e := in.Extends(); e != nil {
+		return checkExtends(pred, e)
+	}
+	return false
+}

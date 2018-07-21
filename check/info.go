@@ -16,10 +16,17 @@ type Info struct {
 	// link variable usage to original object
 	Used map[*ast.Ident]Object
 
-	// record type for every expression
-	Types map[ast.Expr]Type
+	FunCalls map[*ast.Call]Object
+
+	// record types of expressions, calls and functions
+	Types TypeMap
 
 	Literals []*ast.Literal
+}
+
+type TypeMap struct {
+	Actual   map[ast.Node]Type // actual type of a node
+	Expected map[ast.Node]Type // expected type (e.g. on implicit type casts)
 }
 
 type (

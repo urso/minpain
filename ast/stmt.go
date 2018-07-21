@@ -64,11 +64,11 @@ type BranchKind uint8
 
 type LoopKind uint8
 
-//go:generate stringer -type=BranchKind
+//go:generate stringer -type=BranchKind -linecomment=true
 const (
-	BranchInvalid BranchKind = iota
-	BranchBreak
-	BranchContinue
+	BranchInvalid  BranchKind = iota // invalid
+	BranchBreak                      // break
+	BranchContinue                   // continue
 )
 
 //go:generate stringer -type=BranchKind

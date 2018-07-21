@@ -4,7 +4,7 @@ import "github.com/urso/minpain/ast"
 
 type EnvSetuper interface {
 	Enter(node ast.Node) bool
-	Exit()
+	Exit(node ast.Node)
 }
 
 type filterVisitor struct {
@@ -13,7 +13,7 @@ type filterVisitor struct {
 
 type envVisitor struct {
 	enter func(ast.Node) bool
-	exit  func()
+	exit  func(ast.Node)
 }
 
 type rulesVisitor struct {
@@ -30,11 +30,11 @@ func Rules(vs ...Visitor) Visitor {
 func EnvSetup(s EnvSetuper) Visitor {
 	return EnvSetupWith(s.Enter, s.Exit)
 }
-func EnvSetupWith(enter func(ast.Node) bool, exit func()) Visitor {
+func EnvSetupWith(enter func(ast.Node) bool, exit func(ast.Node)) Visitor {
 	return &envVisitor{enter: enter, exit: exit}
 }
 func (v *envVisitor) Enter(node ast.Node) (visit, callExit bool) { return true, v.enter(node) }
-func (v *envVisitor) Exit(node ast.Node)                         { v.exit() }
+func (v *envVisitor) Exit(node ast.Node)                         { v.exit(node) }
 func (v *envVisitor) FromTop(node ast.Node) (visit bool)         { return true }
 func (v *envVisitor) FromBottom(node ast.Node)                   {}
 
