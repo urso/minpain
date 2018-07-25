@@ -9,17 +9,18 @@ import (
 // errs. The function returns false in case very critical errors have been
 // identified, that make type checking impossible.
 func validateAST(errs *multiErr, node ast.Node) (cont bool) {
-	validateLoopOnlyStmts(errs, node)
-
+	walk.Walk(node, walk.Rules(
+		loopOnlyStmtsValidator(errs),
+		assignToStorableValidator(errs),
+	))
 	return true
 }
 
-// validateLoopOnlyStmts checks that `break` and `continue` statements
+// loopOnlyStmtsValidator checks that `break` and `continue` statements
 // only appear within a loop
-func validateLoopOnlyStmts(errs *multiErr, node ast.Node) {
+func loopOnlyStmtsValidator(errs *multiErr) walk.Visitor {
 	levels := []int{0}
-
-	walk.Walk(node, walk.Rules(
+	return walk.Rules(
 		walk.EnvSetupWith(
 			func(n ast.Node) bool {
 				switch n.(type) {
@@ -44,11 +45,22 @@ func validateLoopOnlyStmts(errs *multiErr, node ast.Node) {
 				}
 			},
 		),
-		walk.FromBottom(func(node ast.Node) {
+		walk.FromTop(func(node ast.Node) bool {
 			if stmt, ok := node.(*ast.BranchStmt); ok && levels[len(levels)-1] == 0 {
 				err := newNodeErrorf(node, "branching statement %v not in loop", stmt.Kind)
 				errs.add(err)
 			}
+			return true
 		}),
-	))
+	)
+}
+
+func assignToStorableValidator(errs *multiErr) walk.Visitor {
+	return walk.FromTop(func(node ast.Node) bool {
+		if expr, ok := node.(*ast.Assign); ok && !ast.Storable(expr.LHS) {
+			err := newNodeError(expr, "Left-hand side cannot be assigned a value.")
+			errs.add(err)
+		}
+		return true
+	})
 }

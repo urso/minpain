@@ -311,7 +311,8 @@ func checkInvoke(ctx *checkCtx, n *ast.Call) Type {
 
 func checkAssign(ctx *checkCtx, n *ast.Assign) Type {
 	if !ast.Storable(n.LHS) {
-		ctx.recordErr(newNodeError(n, "Left-hand side cannot be assigned a value."))
+		// invalid AST, already caught by validator
+		return types.Def
 	}
 
 	if n.Op != ast.OpAssign {
