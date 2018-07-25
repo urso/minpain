@@ -30,6 +30,11 @@ type (
 		stmtNode()
 	}
 
+	Storer interface {
+		Node
+		Storable() bool
+	}
+
 	Object struct {
 		Kind ObjKind
 		Name string
@@ -64,3 +69,11 @@ func IsStmt(n Node) bool {
 
 func (s *Script) Pos() Pos       { return s.Start }
 func (s *Script) Source() string { return s.Start.Source }
+
+func Storable(n Node) bool {
+	s, ok := n.(Storer)
+	if ok {
+		ok = s.Storable()
+	}
+	return ok
+}

@@ -138,7 +138,8 @@ const (
 	OpClassRegex
 	OpClassBits
 	OpClassBool
-	OpClassCmp
+	OpClassCmpEq
+	OpClassCmpNum
 	OpClassOther
 	OPClassMask = 0xff00
 
@@ -175,11 +176,12 @@ const (
 	OpBoolNot
 
 	// comparison ops
-	OpCmpEQ OpKind = OpClassCmp + iota
+	OpCmpEQ OpKind = OpClassCmpEq + iota
 	OpCmpEQR
 	OpCmpNE
 	OpCmpNER
-	OpCmpLT
+
+	OpCmpLT OpKind = OpClassCmpNum + iota
 	OpCmpLTE
 	OpCmpGT
 	OpCmpGTE
@@ -190,9 +192,46 @@ const (
 	OpInstanceOf
 )
 
+var opSyms = map[OpKind]string{
+	OpMul:        "*",
+	OpDiv:        "/",
+	OpRem:        "%",
+	OpAdd:        "+",
+	OpSub:        "-",
+	OpInc:        "++",
+	OpDec:        "--",
+	OpPos:        "+",
+	OpNeg:        "-",
+	OpFind:       "=~",
+	OpLSH:        "<<",
+	OpRSH:        ">>",
+	OpUSH:        ">>>",
+	OpBitsAnd:    "&",
+	OpBitsXOR:    "^",
+	OpBitsOR:     "|",
+	OpBitsNot:    "~",
+	OpAND:        "&&",
+	OpOR:         "||",
+	OpBoolNot:    "!",
+	OpMatch:      "==~",
+	OpCmpEQ:      "==",
+	OpCmpEQR:     "===",
+	OpCmpNE:      "!=",
+	OpCmpNER:     "!==",
+	OpCmpLT:      "<",
+	OpCmpLTE:     "<=",
+	OpCmpGT:      ">",
+	OpCmpGTE:     ">=",
+	OpAssign:     "=",
+	OpInstanceOf: "<instanceof>",
+}
+
 func (n *Ident) Pos() Pos  { return n.NamePos }
 func (_ *Ident) exprNode() {}
 func (_ *Ident) typeNode() {}
+func (n *Ident) Storable() bool {
+	return n.Obj != nil && n.Obj.Kind == VarObj
+}
 
 func (n *ListInit) Pos() Pos  { return n.Start }
 func (_ *ListInit) exprNode() {}
@@ -228,12 +267,21 @@ func (_ *Call) stmtNode() {}
 
 func (n *FieldAccess) Pos() Pos  { return n.At }
 func (_ *FieldAccess) exprNode() {}
+func (n *FieldAccess) Storable() bool {
+	return true
+}
 
 func (n *IdxAccess) Pos() Pos  { return n.At }
 func (_ *IdxAccess) exprNode() {}
+func (_ *IdxAccess) Storable() bool {
+	return true
+}
 
 func (n *Access) Pos() Pos  { return n.At }
 func (_ *Access) exprNode() {}
+func (_ *Access) Storable() bool {
+	return true
+}
 
 func (n *ArrType) Pos() Pos  { return n.Start }
 func (_ *ArrType) exprNode() {}
@@ -246,3 +294,10 @@ func (_ *Lambda) exprNode() {}
 
 func (n *Ref) Pos() Pos  { return n.At }
 func (_ *Ref) exprNode() {}
+
+func (o OpKind) Symbol() string {
+	if s := opSyms[o]; s != "" {
+		return s
+	}
+	return "<" + o.String() + ">"
+}

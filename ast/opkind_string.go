@@ -10,8 +10,9 @@ const (
 	_OpKind_name_2 = "OpFindOpMatch"
 	_OpKind_name_3 = "OpLSHOpRSHOpUSHOpBitsAndOpBitsXOROpBitsOROpBitsNot"
 	_OpKind_name_4 = "OpANDOpOROpBoolNot"
-	_OpKind_name_5 = "OpCmpEQOpCmpEQROpCmpNEOpCmpNEROpCmpLTOpCmpLTEOpCmpGTOpCmpGTE"
-	_OpKind_name_6 = "OpAssignOpInstanceOf"
+	_OpKind_name_5 = "OpCmpEQOpCmpEQROpCmpNEOpCmpNER"
+	_OpKind_name_6 = "OpCmpLTOpCmpLTEOpCmpGTOpCmpGTE"
+	_OpKind_name_7 = "OpAssignOpInstanceOf"
 )
 
 var (
@@ -19,32 +20,36 @@ var (
 	_OpKind_index_2 = [...]uint8{0, 6, 13}
 	_OpKind_index_3 = [...]uint8{0, 5, 10, 15, 24, 33, 41, 50}
 	_OpKind_index_4 = [...]uint8{0, 5, 9, 18}
-	_OpKind_index_5 = [...]uint8{0, 7, 15, 22, 30, 37, 45, 52, 60}
-	_OpKind_index_6 = [...]uint8{0, 8, 20}
+	_OpKind_index_5 = [...]uint8{0, 7, 15, 22, 30}
+	_OpKind_index_6 = [...]uint8{0, 7, 15, 22, 30}
+	_OpKind_index_7 = [...]uint8{0, 8, 20}
 )
 
 func (i OpKind) String() string {
 	switch {
 	case i == 0:
 		return _OpKind_name_0
-	case 263 <= i && i <= 271:
-		i -= 263
+	case 265 <= i && i <= 273:
+		i -= 265
 		return _OpKind_name_1[_OpKind_index_1[i]:_OpKind_index_1[i+1]]
-	case 528 <= i && i <= 529:
-		i -= 528
+	case 530 <= i && i <= 531:
+		i -= 530
 		return _OpKind_name_2[_OpKind_index_2[i]:_OpKind_index_2[i+1]]
-	case 786 <= i && i <= 792:
-		i -= 786
+	case 788 <= i && i <= 794:
+		i -= 788
 		return _OpKind_name_3[_OpKind_index_3[i]:_OpKind_index_3[i+1]]
-	case 1049 <= i && i <= 1051:
-		i -= 1049
+	case 1051 <= i && i <= 1053:
+		i -= 1051
 		return _OpKind_name_4[_OpKind_index_4[i]:_OpKind_index_4[i+1]]
-	case 1308 <= i && i <= 1315:
-		i -= 1308
+	case 1310 <= i && i <= 1313:
+		i -= 1310
 		return _OpKind_name_5[_OpKind_index_5[i]:_OpKind_index_5[i+1]]
-	case 1572 <= i && i <= 1573:
-		i -= 1572
+	case 1570 <= i && i <= 1573:
+		i -= 1570
 		return _OpKind_name_6[_OpKind_index_6[i]:_OpKind_index_6[i+1]]
+	case 1830 <= i && i <= 1831:
+		i -= 1830
+		return _OpKind_name_7[_OpKind_index_7[i]:_OpKind_index_7[i+1]]
 	default:
 		return "OpKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
