@@ -147,7 +147,8 @@ func checkNode(ctx *checkCtx, node ast.Node) {
 		ctx.recordErr(newNodeErrorf(n, "TODO: define required types for exceptions"))
 
 	case *ast.IfStmt:
-		checkTypes(ctx, types.Bool, ctx.typeOf(n.Cond))
+		checkTypes(ctx, n.Cond, types.Bool, ctx.typeOf(n.Cond))
+		ctx.recordExpectedType(n.Cond, types.Bool)
 
 	case *ast.ReturnStmt:
 		retType := types.Void
@@ -155,24 +156,28 @@ func checkNode(ctx *checkCtx, node ast.Node) {
 			retType = ctx.typeOf(n.Expr)
 		}
 
-		if fn := ctx.function; fn != nil {
-			checkTypes(ctx, fn.Return(), retType)
-		}
 		ctx.recordType(n, retType)
+		if fn := ctx.function; fn != nil {
+			fnRet := fn.Return()
+			checkTypes(ctx, n, fnRet, retType)
+			ctx.recordExpectedType(n, fnRet)
+		}
 
 	case *ast.ThrowStmt:
 		throwType := ctx.typeOf(n.Expr)
-		checkTypes(ctx, types.Exception, throwType)
-		ctx.recordType(n, throwType)
+		ctx.recordType(n, checkTypes(ctx, n, types.Exception, throwType))
 
 	case *ast.Loop:
 		if n.Cond != nil {
-			checkTypes(ctx, types.Bool, ctx.typeOf(n.Cond))
+			checkTypes(ctx, n.Cond, types.Bool, ctx.typeOf(n.Cond))
+			ctx.recordExpectedType(n.Cond, types.Bool)
 		}
 
 	case *ast.EachLoop:
 		declVar := ctx.info.Decl[n.ID]
-		checkTypes(ctx, declVar.Type(), ctx.typeOf(n.Expr))
+		declType := declVar.Type()
+		checkTypes(ctx, n.Expr, declType, ctx.typeOf(n.Expr))
+		ctx.recordExpectedType(n.Expr, declType)
 	}
 }
 
@@ -201,8 +206,8 @@ func checkBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
 		return checkArithBinop(ctx, at, op, x, y)
 
 	case ast.OpClassRegex:
-		checkTypes(ctx, types.String, ctx.typeOf(x))
-		checkTypes(ctx, types.Regex, ctx.typeOf(y))
+		checkTypes(ctx, x, types.String, ctx.typeOf(x))
+		checkTypes(ctx, y, types.Regex, ctx.typeOf(y))
 		return types.Bool
 
 	case ast.OpClassBits:
@@ -210,18 +215,17 @@ func checkBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
 		return types.Bool
 
 	case ast.OpClassBool:
-		checkTypes(ctx, types.Bool, ctx.typeOf(x))
-		checkTypes(ctx, types.Bool, ctx.typeOf(y))
+		checkTypes(ctx, x, types.Bool, ctx.typeOf(x))
+		checkTypes(ctx, y, types.Bool, ctx.typeOf(y))
 		return types.Bool
 
-	case ast.OpClassCmp:
+	case ast.OpClassCmpEq, ast.OpClassCmpNum:
 		return checkCmpBinop(ctx, at, op, x, y)
 
 	case ast.OpClassOther:
 		switch op {
-		case ast.OpAssign:
-			return checkAssignType(ctx, ctx.typeOf(x), ctx.typeOf(y))
 		case ast.OpInstanceOf:
+			ctx.recordErr(newNodeErrorf(at, "TODO: add support for instanceof"))
 			return types.Bool
 		default:
 			panic("invalid op type")
@@ -233,30 +237,32 @@ func checkBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
 }
 
 func checkArithBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
-	var (
-		sym      rune
-		promotFn func(tx, ty types.Type) types.Type
-	)
+	return checkPromotingBinop(ctx, at, op, x, y)
+}
 
-	switch op {
-	case ast.OpMul:
-		sym, promotFn = '*', types.PromoteNumbers
-	case ast.OpDiv:
-		sym, promotFn = '/', types.PromoteNumbers
-	case ast.OpRem:
-		sym, promotFn = '%', types.PromoteNumbers
-	case ast.OpAdd:
-		sym, promotFn = '+', types.PromoteAdd
-	case ast.OpSub:
-		sym, promotFn = '-', types.PromoteNumbers
-	default:
-		panic("invalid binary arithmetic operation")
+func checkCmpBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
+	return checkPromotingBinop(ctx, at, op, x, y)
+}
+
+func checkPromotingBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
+	var promotFn func(tx, ty types.Type) types.Type
+	switch op & ast.OPClassMask {
+	case ast.OpClassArithmetic:
+		if op == ast.OpAdd {
+			promotFn = types.PromoteAdd
+		} else {
+			promotFn = types.PromoteNumbers
+		}
+	case ast.OpClassCmpEq:
+		promotFn = types.PromoteEq
+	case ast.OpClassCmpNum:
+		promotFn = types.PromoteNumbers
 	}
 
 	tx, ty := ctx.typeOf(x), ctx.typeOf(y)
 	promoted := promotFn(tx, ty)
 	if promoted == nil {
-		ctx.recordErr(newNodeErrorf(at, "can not apply '%v' to values of type %v and %v", sym, tx, ty))
+		ctx.recordErr(newNodeErrorf(at, "can not apply '%v' to values of type %v and %v", op.Symbol(), tx, ty))
 		return types.Def // return some type, so checker can find more errors
 	}
 
@@ -265,22 +271,81 @@ func checkArithBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) T
 	return promoted
 }
 
-func checkCmpBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
-	panic("TODO")
+func checkCall(ctx *checkCtx, n *ast.Call) Type {
+	if n.Value != nil {
+		return checkInvoke(ctx, n)
+	}
+
+	obj := ctx.info.FunCalls[n]
+	fn, ok := obj.(*Function)
+	if !ok {
+		ctx.recordErr(newNodeErrorf(n, "%v is no function", n.ID.Name))
+		return types.Def // return def so type checking can continue with extra errors
+	}
+
+	sig := fn.Signature()
+
+	nArgs := sig.NumArguments()
+	if nArgs != len(n.Args) {
+		ctx.recordErr(newNodeErrorf(n, "function %v expected %v arguments", fn.Name(), nArgs))
+
+		if nArgs > len(n.Args) {
+			nArgs = len(n.Args)
+		}
+	}
+
+	for i := 0; i < nArgs; i++ {
+		arg := n.Args[i]
+		tSig := sig.Argument(i)
+		checkTypes(ctx, arg, tSig, ctx.typeOf(arg))
+		ctx.recordExpectedType(arg, tSig)
+	}
+
+	return sig.Return()
 }
 
-func checkCall(ctx *checkCtx, n *ast.Call) Type {
-	panic("TODO")
+func checkInvoke(ctx *checkCtx, n *ast.Call) Type {
+	ctx.recordErr(newNodeErrorf(n, "TODO: add support for method invokations"))
+	return types.Def
 }
 
 func checkAssign(ctx *checkCtx, n *ast.Assign) Type {
-	panic("TODO")
+	if !ast.Storable(n.LHS) {
+		ctx.recordErr(newNodeError(n, "Left-hand side cannot be assigned a value."))
+	}
+
+	if n.Op != ast.OpAssign {
+		return checkCompoundAssign(ctx, n)
+	}
+
+	// simple assignment
+	res := ctx.typeOf(n.RHS)
+	if res == types.Void {
+		ctx.recordErr(newNodeError(n, "Right-hand side cannot be a [void] type for assignment."))
+	}
+	expected := checkTypes(ctx, n.RHS, ctx.typeOf(n.LHS), res) // check compatibility
+	ctx.recordExpectedType(n.RHS, expected)
+	return expected
 }
 
-func checkAssignType(ctx *checkCtx, to, from Type) Type {
-	panic("TODO")
+func checkCompoundAssign(ctx *checkCtx, n *ast.Assign) Type {
+	ctx.recordErr(newNodeError(n, "TODO: compound assignment"))
+	return ctx.typeOf(n.LHS)
 }
 
-func checkTypes(ctx *checkCtx, expected, t Type) Type {
-	panic("TODO")
+func checkTypes(ctx *checkCtx, at ast.Node, expected, t Type) Type {
+	if expected == t { // bool, string, regex must match by type
+		return expected
+	}
+
+	if types.IsNumeric(expected) { // try to 'promote' common numeric types
+		promoted := types.PromoteNumbers(expected, t)
+		if promoted == nil {
+			ctx.recordErr(newNodeErrorf(at, "type mismatch. Expected: %v, but did find: %v", expected, t))
+			return nil
+		}
+		return promoted
+	}
+
+	panic("TODO: casting and inheritance rules")
 }
