@@ -7,6 +7,21 @@ func PromoteAdd(a, b Type) Type {
 	return PromoteNumbers(a, b)
 }
 
+func PromoteEq(a, b Type) Type {
+	if isOne(Def, a, b) {
+		return Def
+	}
+
+	if isBoth(Bool, a, b) {
+		return Bool
+	}
+	if IsNumeric(a) && IsNumeric(b) {
+		return PromoteNumbers(a, b)
+	}
+
+	return Object
+}
+
 func PromoteNumbers(a, b Type) Type {
 	return PromoteNumeric(a, b, true)
 }
@@ -37,4 +52,8 @@ func PromoteNumeric(a, b Type, decimal bool) Type {
 
 func isOne(check, a, b Type) bool {
 	return a == check || b == check
+}
+
+func isBoth(check, a, b Type) bool {
+	return a == check && b == check
 }

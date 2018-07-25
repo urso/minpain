@@ -13,6 +13,8 @@ type constType struct{}
 
 type voidType struct{}
 
+type objectType struct{}
+
 type defType struct{}
 
 type stringType struct {
@@ -21,6 +23,7 @@ type stringType struct {
 
 var (
 	Void      Type = &voidType{}
+	Object    Type = &objectType{}
 	Def       Type = &defType{}
 	Null      Type = Def
 	Exception Type = Def
@@ -44,8 +47,12 @@ func (_ *voidType) Extends() Type {
 	return nil
 }
 
-func (_ *defType) Extends() Type {
+func (_ *objectType) Extends() Type {
 	return nil
+}
+
+func (_ *defType) Extends() Type {
+	return Object
 }
 
 func (p *primType) Extends() Type {
