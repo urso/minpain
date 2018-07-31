@@ -44,7 +44,7 @@ func PromoteNumeric(a, b Type, decimal bool) Type {
 		return Long
 	}
 
-	if a.Extends() == Numeric && b.Extends() == Numeric {
+	if (a == Numeric || a.Extends() == Numeric) && (b == Numeric || b.Extends() == Numeric) {
 		return Int
 	}
 	return nil

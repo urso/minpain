@@ -1,6 +1,9 @@
 package types
 
+import "fmt"
+
 type Type interface {
+	String() string
 	Extends() Type
 }
 
@@ -56,4 +59,5 @@ type Array struct {
 	Elt Type
 }
 
-func (t *Array) Extends() Type { return Def }
+func (t *Array) Extends() Type  { return Def }
+func (t *Array) String() string { return fmt.Sprintf("%v[]", t.Elt) }
