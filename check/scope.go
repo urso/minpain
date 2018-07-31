@@ -1,9 +1,14 @@
 package check
 
-import "github.com/urso/minpain/types"
+import (
+	"fmt"
+
+	"github.com/urso/minpain/types"
+)
 
 type Scope struct {
 	name     string
+	idx      int
 	kind     ScopeKind
 	parent   *Scope
 	children []*Scope
@@ -25,15 +30,28 @@ const (
 )
 
 func NewScope(name string, kind ScopeKind, parent *Scope) *Scope {
-	s := &Scope{name: name, kind: kind, parent: parent}
+	s := &Scope{name: name, idx: -1, kind: kind, parent: parent}
 	if parent != nil {
 		k := parent.kind
 		if k != ScopeUniversal && k != ScopePrelude {
+			s.idx = len(parent.children)
 			parent.children = append(parent.children, s)
 		}
 	}
 
 	return s
+}
+
+func (s *Scope) Name() string {
+	return s.name
+}
+
+func (s *Scope) FullName() string {
+	parent := s.Parent()
+	if parent == nil {
+		return s.Name()
+	}
+	return fmt.Sprintf("%v.%v.%v", parent.FullName(), s.idx, s.Name())
 }
 
 func (s *Scope) Kind() ScopeKind {
@@ -72,4 +90,14 @@ func (s *Scope) add(obj Object) {
 		s.syms = map[string]Object{}
 	}
 	s.syms[obj.Name()] = obj
+}
+
+func (s *Scope) Each(fn func(Object)) {
+	for _, obj := range s.syms {
+		fn(obj)
+	}
+
+	for _, child := range s.children {
+		child.Each(fn)
+	}
 }

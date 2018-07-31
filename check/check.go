@@ -1,6 +1,8 @@
 package check
 
 import (
+	"fmt"
+
 	"github.com/urso/minpain/ast"
 	"github.com/urso/minpain/ast/walk"
 	"github.com/urso/minpain/types"
@@ -9,7 +11,9 @@ import (
 type checkCtx struct {
 	info  *Info
 	scope *Scope
-	errs  *multiErr
+	errs  multiErr
+
+	trace func(string, ...interface{})
 
 	function *Function // active function
 }
@@ -26,7 +30,7 @@ func (ctx *checkCtx) typeOf(node ast.Node) Type {
 	return ctx.info.Types.Actual[node]
 }
 
-func (ctx *checkCtx) recordErr(err error) { ctx.errs.add(err) }
+func (ctx *checkCtx) recordErr(err error) { ctx.errs.Add(err) }
 
 func (ctx *checkCtx) withScope(scope *Scope, fn func()) {
 	old := ctx.scope
@@ -37,35 +41,23 @@ func (ctx *checkCtx) withScope(scope *Scope, fn func()) {
 	fn()
 }
 
-func checkScript(errs *multiErr, types map[string]Type, script *ast.Script) {
-	info := &Info{
-		Functions: map[*ast.FuncDecl]*Function{},
-		Scopes:    map[ast.Node]*Scope{},
-		Decl:      map[*ast.Ident]Object{},
-		Used:      map[*ast.Ident]Object{},
-		Literals:  nil,
-	}
+func Check(errs multiErr, info *Info, scope *Scope, script *ast.Script, debug bool) {
+	checkScript(errs, info, scope, script, debug)
+}
 
+func checkScript(errs multiErr, info *Info, scope *Scope, script *ast.Script, debug bool) {
 	source := script.Pos().Source
 	if source == "" {
 		source = "<script>"
 	}
 
-	// TODO: support for parent scope
-	scriptScope := NewScope(source, ScopeScript, nil)
-
-	if !validateAST(errs, script) {
-		return
+	ctx := &checkCtx{info: info, scope: scope, errs: errs}
+	ctx.trace = func(_ string, _ ...interface{}) {}
+	if debug {
+		ctx.trace = func(s string, vs ...interface{}) {
+			fmt.Println(fmt.Sprintf(s, vs...))
+		}
 	}
-
-	indexScript(&idxCtx{
-		info:  info,
-		scope: scriptScope,
-		errs:  errs,
-		types: types,
-	}, script)
-
-	ctx := &checkCtx{info: info, scope: scriptScope, errs: errs}
 
 	activeFuncEnv := walk.EnvSetupWith(
 		func(n ast.Node) (ok bool) {
@@ -93,9 +85,24 @@ func checkNode(ctx *checkCtx, node ast.Node) {
 	switch n := node.(type) {
 	// check expressions:
 	case *ast.Ident:
-		if obj := ctx.info.Used[n]; obj != nil {
-			ctx.recordType(n, obj.Type())
+		if n.Obj.Kind == ast.TypObj {
+			break
 		}
+
+		var typ Type
+		if obj := ctx.info.Used[n]; obj != nil {
+			typ = obj.Type()
+		} else if obj := ctx.info.Decl[n]; obj != nil {
+			typ = obj.Type()
+		}
+
+		if typ == nil {
+			ctx.trace("check: can not resolve id type: %v (%v)", n.Name, n.Pos())
+			break
+		}
+
+		ctx.trace("check: resolve id type: %v (%v) -> %v", n.Name, n.Pos(), typ)
+		ctx.recordType(n, typ)
 
 	case *ast.ListInit:
 		ctx.recordErr(newNodeErrorf(n, "TODO: define type for list"))
@@ -192,11 +199,14 @@ func checkLit(ctx *checkCtx, lit *ast.Literal) (t Type) {
 	}
 
 	if t, ok := litTypes[lit.Kind]; ok {
+		ctx.trace("literal %v(%v) -> %v", lit.Value, lit.Pos(), t)
 		ctx.recordType(lit, t)
 		return t
 	}
 
-	ctx.recordErr(newNodeErrorf(lit, "bad literal"))
+	err := newNodeErrorf(lit, "bad literal")
+	ctx.trace("%v", err)
+	ctx.recordErr(err)
 	return types.Void
 }
 
@@ -294,9 +304,11 @@ func checkCall(ctx *checkCtx, n *ast.Call) Type {
 		}
 	}
 
+	ctx.trace("check call: %v", sig)
 	for i := 0; i < nArgs; i++ {
 		arg := n.Args[i]
 		tSig := sig.Argument(i)
+		ctx.trace("arg %v -> %v", arg, tSig)
 		checkTypes(ctx, arg, tSig, ctx.typeOf(arg))
 		ctx.recordExpectedType(arg, tSig)
 	}
@@ -335,15 +347,27 @@ func checkCompoundAssign(ctx *checkCtx, n *ast.Assign) Type {
 }
 
 func checkTypes(ctx *checkCtx, at ast.Node, expected, t Type) Type {
+	if t == nil {
+		panic("type is <nil>")
+	}
+	if expected == nil {
+		panic("expected type is nil")
+	}
+
+	ctx.trace("checkTypes: %v == %v", expected, t)
+
 	if expected == t { // bool, string, regex must match by type
 		return expected
 	}
 
 	if types.IsNumeric(expected) { // try to 'promote' common numeric types
-		promoted := types.PromoteNumbers(expected, t)
+		var promoted Type
+		if types.IsNumeric(t) {
+			promoted = types.PromoteNumbers(expected, t)
+		}
+
 		if promoted == nil {
 			ctx.recordErr(newNodeErrorf(at, "type mismatch. Expected: %v, but did find: %v", expected, t))
-			return nil
 		}
 		return promoted
 	}

@@ -9,9 +9,13 @@ import (
 type idxCtx struct {
 	info  *Info
 	scope *Scope
-	errs  *multiErr
+	errs  multiErr
 
-	types map[string]Type
+	types TypeTable
+}
+
+type TypeTable interface {
+	Lookup(string) Type
 }
 
 func (ctx *idxCtx) openScriptScope(name string, n *ast.Script) *Scope {
@@ -50,7 +54,7 @@ func (ctx *idxCtx) withScope(scope *Scope, fn func()) {
 	fn()
 }
 
-func (ctx *idxCtx) recordErr(err error) { ctx.errs.add(err) }
+func (ctx *idxCtx) recordErr(err error) { ctx.errs.Add(err) }
 
 func (ctx *idxCtx) recordRedecl(id *ast.Ident) {
 	ctx.recordErr(newNodeErrorf(id, "%v redeclared", id.Name))
@@ -78,6 +82,20 @@ func (ctx *idxCtx) recordDecl(node *ast.Ident, obj Object)      { ctx.info.Decl[
 func (ctx *idxCtx) recordUse(node *ast.Ident, obj Object)       { ctx.info.Used[node] = obj }
 func (ctx *idxCtx) recordLit(lit *ast.Literal)                  { ctx.info.Literals = append(ctx.info.Literals, lit) }
 func (ctx *idxCtx) recordCall(call *ast.Call, obj Object)       { ctx.info.FunCalls[call] = obj }
+
+func Index(errs multiErr, source string, info *Info, script *ast.Script) *Scope {
+	topScope := NewScope("<top>", ScopeScript, nil)
+
+	ctx := &idxCtx{
+		info:  info,
+		scope: topScope,
+		errs:  errs,
+		types: info.DeclTypes,
+	}
+
+	indexScript(ctx, script)
+	return topScope
+}
 
 func indexScript(ctx *idxCtx, script *ast.Script) {
 	// 1. phase: create and link block scopes
@@ -312,7 +330,7 @@ func argTypes(ctx *idxCtx, fields []*ast.Field) []Type {
 func createType(ctx *idxCtx, node ast.TypeExpr) Type {
 	switch expr := node.(type) {
 	case *ast.Ident:
-		t := ctx.types[expr.Name]
+		t := ctx.types.Lookup(expr.Name)
 		if t == nil {
 			ctx.recordUnknownType(node, expr.Name)
 		}

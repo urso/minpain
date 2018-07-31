@@ -6,7 +6,9 @@ import (
 	"github.com/urso/minpain/ast"
 )
 
-type multiErr []error
+type multiErr interface {
+	Add(err error)
+}
 
 type nodeError struct {
 	node ast.Node
@@ -44,10 +46,8 @@ func (e *typeError) Error() string {
 	return fmt.Sprintf("%v:%v: %v", pos.Line, pos.Column, e.msg)
 }
 
-func (m *multiErr) add(e error) {
-	*m = append(*m, e)
-}
-
+/*
 func (m *multiErr) append(errs []error) {
 	*m = append(*m, errs...)
 }
+*/

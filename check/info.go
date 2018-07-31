@@ -1,6 +1,8 @@
 package check
 
 import (
+	"fmt"
+
 	"github.com/urso/minpain/ast"
 	"github.com/urso/minpain/types"
 )
@@ -21,6 +23,9 @@ type Info struct {
 	// record types of expressions, calls and functions
 	Types TypeMap
 
+	// table of available types
+	DeclTypes TypeTable
+
 	Literals []*ast.Literal
 }
 
@@ -33,6 +38,7 @@ type (
 	Object interface {
 		Name() string
 		Type() Type
+		Parent() *Scope
 	}
 
 	object struct {
@@ -52,6 +58,22 @@ type (
 	}
 )
 
+func NewInfo(types TypeTable) *Info {
+	return &Info{
+		Functions: map[*ast.FuncDecl]*Function{},
+		Scopes:    map[ast.Node]*Scope{},
+		Decl:      map[*ast.Ident]Object{},
+		Used:      map[*ast.Ident]Object{},
+		FunCalls:  map[*ast.Call]Object{},
+		Types: TypeMap{
+			Actual:   map[ast.Node]Type{},
+			Expected: map[ast.Node]Type{},
+		},
+		DeclTypes: types,
+		Literals:  nil,
+	}
+}
+
 func (o *object) Name() string {
 	return o.name
 }
@@ -62,6 +84,15 @@ func (o *object) Type() Type {
 
 func (o *object) Pos() ast.Pos {
 	return o.node.Pos()
+}
+
+func (o *object) Parent() *Scope {
+	return o.parent
+}
+
+func (o *object) String() string {
+	return fmt.Sprintf("%v: %v", FullObjectName(o), o.Type())
+
 }
 
 func newFuncObj(fn *ast.FuncDecl, typ Type, scope *Scope) *Function {
@@ -90,4 +121,12 @@ func newParam(id *ast.Ident, typ Type, parent *Scope) *Variable {
 func isVariable(obj Object) bool {
 	_, ok := obj.(*Variable)
 	return ok
+}
+
+func FullObjectName(obj Object) string {
+	parent := obj.Parent()
+	if parent == nil {
+		return obj.Name()
+	}
+	return fmt.Sprintf("%v.%v", parent.FullName(), obj.Name())
 }
