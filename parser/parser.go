@@ -11,7 +11,8 @@ import (
 )
 
 type Parser struct {
-	isType func(string) bool
+	errListener multiError
+	isType      func(string) bool
 }
 
 type parseListener struct {
@@ -23,12 +24,17 @@ type parseListener struct {
 	st *state
 }
 
-func NewParser(isType func(string) bool) *Parser {
+type multiError interface {
+	Err() error
+	Add(err error)
+}
+
+func NewParser(errListener multiError, isType func(string) bool) *Parser {
 	if isType == nil {
 		isType = func(name string) bool { return name == "def" }
 	}
 
-	return &Parser{isType: isType}
+	return &Parser{errListener: errListener, isType: isType}
 }
 
 func (p *Parser) Parse(origin, input string, debug bool) (ast.Node, error) {
@@ -42,7 +48,7 @@ func (p *Parser) Parse(origin, input string, debug bool) (ast.Node, error) {
 	pl := &parseListener{source: origin, debug: debug, st: st}
 
 	// install our own error listener
-	errs := &errorListener{op: "painless/parse", source: origin}
+	errs := &errorListener{errs: p.errListener, op: "painless/parse", source: origin}
 	parser.RemoveErrorListeners()
 	parser.AddErrorListener(errs)
 

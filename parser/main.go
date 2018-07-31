@@ -5,33 +5,14 @@ package main
 import (
 	"fmt"
 
+	"github.com/urso/minpain/errors"
 	"github.com/urso/minpain/parser"
 	"github.com/urso/minpain/print"
 )
 
+var debug = false
+
 func main() {
-	debug := false
-
-	test := func(in string) {
-		fmt.Printf("input: ```\n%v\n```\n", in)
-
-		p := parser.NewParser(func(str string) bool {
-			switch str {
-			case "def", "int", "String", "Exception":
-				return true
-			}
-			return false
-		})
-		v, err := p.Parse("<test>", in, debug)
-
-		if err != nil {
-			fmt.Println("Fail:", err)
-		} else {
-			print.Print(v)
-		}
-		fmt.Println()
-	}
-
 	test(`null`)
 	test(`return true`)
 	test(`return false`)
@@ -101,4 +82,32 @@ func main() {
 
 	fib(100)
 	`)
+}
+
+func test(in string) {
+	fmt.Printf("input: ```\n%v\n```\n", in)
+
+	errs := errors.NewLimitedMultiError(10)
+
+	p := parser.NewParser(errs, func(str string) bool {
+		switch str {
+		case "def", "boolean", "int", "String", "Exception":
+			return true
+		}
+		return false
+	})
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Fail:\n", r)
+		}
+	}()
+	v, err := p.Parse("<test>", in, debug)
+
+	if err != nil {
+		fmt.Println("Fail:", err)
+	} else {
+		print.Print(v)
+	}
+	fmt.Println()
 }

@@ -8,16 +8,13 @@ import (
 type errorListener struct {
 	op     string
 	source string
-	errs   []error
+	errs   multiError
 }
 
 var _ antlr.ErrorListener = &errorListener{}
 
 func (e *errorListener) Error() error {
-	if len(e.errs) == 0 {
-		return nil
-	}
-	return &Errors{e.errs}
+	return e.errs.Err()
 }
 
 func (l *errorListener) SyntaxError(
@@ -26,7 +23,7 @@ func (l *errorListener) SyntaxError(
 	line, column int, msg string,
 	_ antlr.RecognitionException,
 ) {
-	l.errs = append(l.errs, &ParseError{
+	l.errs.Add(&ParseError{
 		op:  l.op,
 		pos: ast.Pos{Source: l.source, Line: line, Column: column},
 		msg: msg,
