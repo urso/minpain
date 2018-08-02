@@ -71,14 +71,14 @@ const (
 	BranchContinue                   // continue
 )
 
-//go:generate stringer -type=BranchKind
+//go:generate stringer -type=LoopKind -linecomment=true
 const (
-	LoopUnknown LoopKind = iota
-	LoopFor
-	LoopWhile
-	LoopDo
-	LoopEach
-	LoopInEach
+	LoopUnknown LoopKind = iota // <unknown loop kind>
+	LoopFor                     // for
+	LoopWhile                   // while
+	LoopDo                      // do-while
+	LoopEach                    // each
+	LoopInEach                  // in-each
 )
 
 func (n *BlockStmt) Pos() Pos  { return n.BlockPos }
