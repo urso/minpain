@@ -5,6 +5,8 @@ import "fmt"
 type Type interface {
 	String() string
 	Extends() Type
+	InstanceOf(t Type) bool
+	ComponentType() Type
 }
 
 type Class interface {
@@ -59,5 +61,12 @@ type Array struct {
 	Elt Type
 }
 
-func (t *Array) Extends() Type  { return Def }
-func (t *Array) String() string { return fmt.Sprintf("%v[]", t.Elt) }
+func (a *Array) Extends() Type       { return Def }
+func (a *Array) String() string      { return fmt.Sprintf("%v[]", a.Elt) }
+func (a *Array) ComponentType() Type { return a.Elt }
+func (a *Array) InstanceOf(t Type) bool {
+	if other, ok := t.(*Array); ok {
+		return a.Elt.InstanceOf(other.Elt)
+	}
+	return t == Def || t == Object
+}
