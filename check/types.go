@@ -16,10 +16,12 @@ type fnSignature struct {
 	args []Type
 }
 
-func (fn *fnSignature) Extends() types.Type       { return types.Def }
-func (fn *fnSignature) Return() types.Type        { return fn.ret }
-func (fn *fnSignature) NumArguments() int         { return len(fn.args) }
-func (fn *fnSignature) Argument(i int) types.Type { return fn.args[i] }
+func (fn *fnSignature) Extends() types.Type          { return types.Def }
+func (fn *fnSignature) ComponentType() types.Type    { return nil }
+func (fn *fnSignature) InstanceOf(t types.Type) bool { return t == types.Def }
+func (fn *fnSignature) Return() types.Type           { return fn.ret }
+func (fn *fnSignature) NumArguments() int            { return len(fn.args) }
+func (fn *fnSignature) Argument(i int) types.Type    { return fn.args[i] }
 
 func (fn *fnSignature) String() string {
 	args := make([]string, len(fn.args))

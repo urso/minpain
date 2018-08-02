@@ -10,7 +10,8 @@ import (
 type Info struct {
 	Functions map[*ast.FuncDecl]*Function
 
-	Scopes map[ast.Node]*Scope
+	RootScope *Scope
+	Scopes    map[ast.Node]*Scope
 
 	// link variable declarations to objects
 	Decl map[*ast.Ident]Object

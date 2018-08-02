@@ -45,6 +45,7 @@ func main() {
 	test("null")
 	test("int x = 1")
 	test("boolean x = true")
+	test("def x = 1")
 	test(`
 		int fn(int a) {
 			int x = a + 1;
@@ -52,8 +53,50 @@ func main() {
 		}
 		int y = fn(3)
 	`)
-	// test("def x = 1")
-	// test("boolean x = 1")
+	test(`
+	  if (true) {}
+	`)
+	test(`
+	  boolean b = true; if (b) {}
+	`)
+	test(`
+	  def b = true; if (b) {}
+	`)
+	test(`
+	  for (int i = 0; i < 10; i++) {}
+	`)
+	test(`
+	  for (def i = 0; i < 10; i++) {}
+	`)
+	test(`
+	  int i = 0;
+	  for (; i < 10; i++) {}
+	`)
+	test(`
+	  for (;;) {}
+	`)
+	test(`
+	  int[] list;
+	  for (i in list) {}
+	`)
+	test(`
+	  int[] list;
+		for (int i : list) {}
+	`)
+
+	// TODO: add support for exceptions
+	//test(`
+	//	try {
+	//		def b = 2
+	//	} catch(def e) {}
+	//`)
+
+	// test some errors
+	test("break")
+	test("continue")
+	test("boolean x = 1")
+	test("int b = 1; if (b) {}")
+	test(`for (int i = 5; i; i++) {}`)
 }
 
 func test(in string) {
@@ -114,7 +157,7 @@ func test(in string) {
 		}
 	}
 
-	check.Check(errs, info, scriptScope, tree.(*ast.Script), true)
+	check.Types(errs, info, scriptScope, tree.(*ast.Script), true)
 	if err := errs.Err(); err != nil {
 		fmt.Println("check failed:\n", err)
 	}

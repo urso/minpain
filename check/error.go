@@ -8,6 +8,7 @@ import (
 
 type multiErr interface {
 	Add(err error)
+	Err() error
 }
 
 type nodeError struct {

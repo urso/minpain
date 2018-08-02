@@ -41,7 +41,28 @@ func (ctx *checkCtx) withScope(scope *Scope, fn func()) {
 	fn()
 }
 
-func Check(errs multiErr, info *Info, scope *Scope, script *ast.Script, debug bool) {
+func Check(errs multiErr, types TypeTable, tree *ast.Script, debug bool) (*Info, error) {
+	Validate(errs, tree)
+	if err := errs.Err(); err != nil {
+		return nil, err
+	}
+
+	info := NewInfo(types)
+	scriptScope := Index(errs, tree.Pos().Source, info, tree)
+	info.RootScope = scriptScope
+	if err := errs.Err(); err != nil {
+		return nil, err
+	}
+
+	Types(errs, info, scriptScope, tree, debug)
+	if err := errs.Err(); err != nil {
+		return nil, err
+	}
+
+	return info, nil
+}
+
+func Types(errs multiErr, info *Info, scope *Scope, script *ast.Script, debug bool) {
 	checkScript(errs, info, scope, script, debug)
 }
 
@@ -183,7 +204,14 @@ func checkNode(ctx *checkCtx, node ast.Node) {
 	case *ast.EachLoop:
 		declVar := ctx.info.Decl[n.ID]
 		declType := declVar.Type()
-		checkTypes(ctx, n.Expr, declType, ctx.typeOf(n.Expr))
+
+		exprType := ctx.typeOf(n.Expr)
+		componentType := exprType.ComponentType()
+		if componentType == nil {
+			ctx.recordErr(newNodeErrorf(n.Expr, "Type '%v' is not iterable", exprType))
+		} else {
+			checkTypes(ctx, n.Expr, declType, componentType)
+		}
 		ctx.recordExpectedType(n.Expr, declType)
 	}
 }
@@ -251,7 +279,9 @@ func checkArithBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) T
 }
 
 func checkCmpBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
-	return checkPromotingBinop(ctx, at, op, x, y)
+	// check operands and record expected types for comparison operator
+	checkPromotingBinop(ctx, at, op, x, y)
+	return types.Bool // but comparisons always return bool
 }
 
 func checkPromotingBinop(ctx *checkCtx, at ast.Node, op ast.OpKind, x, y ast.Expr) Type {
@@ -356,8 +386,17 @@ func checkTypes(ctx *checkCtx, at ast.Node, expected, t Type) Type {
 
 	ctx.trace("checkTypes: %v == %v", expected, t)
 
-	if expected == t { // bool, string, regex must match by type
+	if expected == t { // bool, string, regex, void must match by type
 		return expected
+	}
+
+	if t == types.Void {
+		ctx.recordErr(newNodeErrorf(at, "Did not expected 'void', but %v", expected))
+		return types.Def // return 'def', so type checker can continue
+	}
+
+	if expected == types.Def {
+		return expected // def always wins
 	}
 
 	if types.IsNumeric(expected) { // try to 'promote' common numeric types
@@ -372,5 +411,11 @@ func checkTypes(ctx *checkCtx, at ast.Node, expected, t Type) Type {
 		return promoted
 	}
 
-	panic("TODO: casting and inheritance rules")
+	if t.InstanceOf(expected) {
+		return expected
+	}
+
+	// ohoh, type mismatch
+	ctx.recordErr(newNodeErrorf(at, "type mismatch. Expected: %v, but did find: %v", expected, t))
+	return types.Def // return 'def', so type checker can continue finding more potential errors
 }

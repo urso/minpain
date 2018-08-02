@@ -322,7 +322,11 @@ func argTypes(ctx *idxCtx, fields []*ast.Field) []Type {
 
 	args := make([]Type, len(fields))
 	for i, expr := range fields {
-		args[i] = createType(ctx, expr.Type)
+		t := createType(ctx, expr.Type)
+		if t == types.Void {
+			ctx.recordErr(newNodeError(expr, "argument must not be 'void'"))
+		}
+		args[i] = t
 	}
 	return args
 }
@@ -339,6 +343,10 @@ func createType(ctx *idxCtx, node ast.TypeExpr) Type {
 	case *ast.ArrType:
 		t := createType(ctx, expr.Elt)
 		if t != nil {
+			if t == types.Void {
+				ctx.recordErr(newNodeError(node, "'void' is no valid array type"))
+			}
+
 			t = &types.Array{Elt: t}
 		}
 		return t
