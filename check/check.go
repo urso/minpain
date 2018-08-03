@@ -48,7 +48,7 @@ func Check(errs multiErr, types TypeTable, tree *ast.Script, debug bool) (*Info,
 	}
 
 	info := NewInfo(types)
-	scriptScope := Index(errs, tree.Pos().Source, info, tree)
+	scriptScope := Index(errs, tree.Pos().Source, info, tree, debug)
 	info.RootScope = scriptScope
 	if err := errs.Err(); err != nil {
 		return nil, err

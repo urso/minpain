@@ -1,6 +1,8 @@
 package check
 
 import (
+	"fmt"
+
 	"github.com/urso/minpain/ast"
 	"github.com/urso/minpain/ast/walk"
 	"github.com/urso/minpain/types"
@@ -10,6 +12,8 @@ type idxCtx struct {
 	info  *Info
 	scope *Scope
 	errs  multiErr
+
+	trace func(string, ...interface{})
 
 	types TypeTable
 }
@@ -32,12 +36,19 @@ func (ctx *idxCtx) openLambdaScope(n *ast.Lambda) *Scope {
 }
 func (ctx *idxCtx) openScope(name string, kind ScopeKind, node ast.Node) *Scope {
 	scope := NewScope(name, kind, ctx.scope)
+	ctx.trace("open scope: %v (%v)", scope.FullName(), kind)
 	ctx.scope = scope
 	ctx.recordScope(node, scope)
 	return scope
 }
 
+func (ctx *idxCtx) recordScopeSym(scope *Scope, obj Object) {
+	scope.add(obj)
+	ctx.trace("record symbol: %v", obj)
+}
+
 func (ctx *idxCtx) closeScope() {
+	ctx.trace("close scope: %v", ctx.scope.FullName())
 	ctx.scope = ctx.scope.Parent()
 }
 
@@ -83,7 +94,7 @@ func (ctx *idxCtx) recordUse(node *ast.Ident, obj Object)       { ctx.info.Used[
 func (ctx *idxCtx) recordLit(lit *ast.Literal)                  { ctx.info.Literals = append(ctx.info.Literals, lit) }
 func (ctx *idxCtx) recordCall(call *ast.Call, obj Object)       { ctx.info.FunCalls[call] = obj }
 
-func Index(errs multiErr, source string, info *Info, script *ast.Script) *Scope {
+func Index(errs multiErr, source string, info *Info, script *ast.Script, debug bool) *Scope {
 	topScope := NewScope("<top>", ScopeScript, nil)
 
 	ctx := &idxCtx{
@@ -91,6 +102,13 @@ func Index(errs multiErr, source string, info *Info, script *ast.Script) *Scope 
 		scope: topScope,
 		errs:  errs,
 		types: info.DeclTypes,
+	}
+
+	ctx.trace = func(_ string, _ ...interface{}) {}
+	if debug {
+		ctx.trace = func(s string, vs ...interface{}) {
+			fmt.Println(fmt.Sprintf(s, vs...))
+		}
 	}
 
 	indexScript(ctx, script)
@@ -189,7 +207,7 @@ func indexFnNames(ctx *idxCtx, script *ast.Script) {
 		addFields(ctx, fnScope, args, decl.Args)
 
 		// index function declaration in script scope:
-		scope.add(obj)
+		ctx.recordScopeSym(scope, obj)
 	}
 }
 
@@ -221,7 +239,7 @@ func indexNodeVars(ctx *idxCtx, node ast.Node) bool {
 	case *ast.Trap: // record 'catch' variable
 		scope := ctx.info.Scopes[node]
 		typ := createType(ctx, n.Type)
-		scope.add(newVarObj(n, n.ID.Name, typ, scope))
+		ctx.recordScopeSym(scope, newVarObj(n, n.ID.Name, typ, scope))
 
 	case *ast.Loop:
 		// manually handle Loop here, as the loop can declare a varialbe in Init.
@@ -236,6 +254,7 @@ func indexNodeVars(ctx *idxCtx, node ast.Node) bool {
 		indexNode(ctx, n.Init)
 		indexNode(ctx, n.Cond)
 		indexNode(ctx, n.Post)
+		indexNode(ctx, n.Body)
 
 		return false
 
@@ -246,7 +265,7 @@ func indexNodeVars(ctx *idxCtx, node ast.Node) bool {
 		}
 		scope := ctx.info.Scopes[node]
 		v := newVarObj(n, n.ID.Name, typ, scope)
-		scope.add(v)
+		ctx.recordScopeSym(scope, v)
 		ctx.recordDecl(n.ID, v)
 
 	case *ast.Lambda:
@@ -311,7 +330,7 @@ func indexVarDecl(ctx *idxCtx, decl *ast.Decl) {
 
 		obj := newVarObj(exp, id.Name, typ, scope)
 		ctx.recordDecl(id, obj)
-		scope.add(obj)
+		ctx.recordScopeSym(scope, obj)
 	}
 }
 
@@ -365,6 +384,6 @@ func addFields(ctx *idxCtx, scope *Scope, types []Type, fields []*ast.Field) {
 			ctx.recordRedecl(id)
 			continue
 		}
-		scope.add(newParam(id, typ, scope))
+		ctx.recordScopeSym(scope, newParam(id, typ, scope))
 	}
 }
