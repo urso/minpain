@@ -28,7 +28,7 @@ var typeTable = typeMap{
 	"String": types.String,
 
 	// exception types
-	"Expcetion": types.Exception,
+	"Exception": types.Exception,
 
 	// primitive types:
 	"boolean": types.Bool,
@@ -83,6 +83,36 @@ func main() {
 	  int[] list;
 		for (int i : list) {}
 	`)
+	test(`
+	  def foo(int a) {
+			for (int i = 0; i < a; i++) {
+				for (int j = 0; j < a; j++) {
+				}
+			}
+
+			return a
+		}
+	`)
+	test(`
+	int fib(int n) {
+		if (n == 0) {
+			return 0
+		}
+		if (n == 1) {
+			return 1
+		}
+
+		int a = 0, b = 1;
+		for (int i = 2; i < n; i++) {
+			int c = a + b;
+			a = b;
+			b = c
+		}
+		return b
+	}
+
+	fib(100)
+	`)
 
 	// TODO: add support for exceptions
 	//test(`
@@ -133,7 +163,7 @@ func test(in string) {
 	}
 
 	info := check.NewInfo(typeTable)
-	scriptScope := check.Index(errs, source, info, tree.(*ast.Script))
+	scriptScope := check.Index(errs, source, info, tree.(*ast.Script), true)
 	if err := errs.Err(); err != nil {
 		fmt.Println("index failed:\n", err)
 	}
