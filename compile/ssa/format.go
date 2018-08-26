@@ -5,9 +5,9 @@ import (
 	"io"
 )
 
-func Format(out io.Writer, p *Program) error {
-	for name, fn := range p.Funcs {
-		if err := formatFn(out, name, fn); err != nil {
+func (p *Program) Format(out io.Writer) error {
+	for _, fn := range p.Funcs {
+		if err := fn.Format(out); err != nil {
 			return err
 		}
 		if _, err := io.WriteString(out, "\n"); err != nil {
@@ -15,11 +15,14 @@ func Format(out io.Writer, p *Program) error {
 		}
 	}
 
-	return formatBlocks(out, p.Main.Blocks)
+	if _, err := fmt.Fprintln(out, "<main>:"); err != nil {
+		return err
+	}
+	return formatBlocks(out, p.Blocks)
 }
 
-func formatFn(out io.Writer, name string, fn *Func) error {
-	sig := fn.Type
+func (fn *Func) Format(out io.Writer) error {
+	name, sig := fn.Name, fn.Type
 	if _, err := fmt.Fprintf(out, "%v %v(", sig.Return(), name); err != nil {
 		return err
 	}
@@ -45,7 +48,7 @@ func formatFn(out io.Writer, name string, fn *Func) error {
 
 func formatBlocks(out io.Writer, blocks []*Block) error {
 	for _, b := range blocks {
-		if err := formatBlock(out, b); err != nil {
+		if err := b.Format(out); err != nil {
 			return err
 		}
 	}
@@ -53,13 +56,19 @@ func formatBlocks(out io.Writer, blocks []*Block) error {
 	return nil
 }
 
-func formatBlock(out io.Writer, blk *Block) error {
+func (blk *Block) Format(out io.Writer) error {
 	if _, err := fmt.Fprintf(out, "%v:  // at: %v\n", blk.ID, blk.Pos); err != nil {
 		return err
 	}
 
 	for _, instr := range blk.Instr {
-		if err := formatInstr(out, instr); err != nil {
+		if _, err := fmt.Fprint(out, "    "); err != nil {
+			return err
+		}
+		if err := instr.Format(out); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(out); err != nil {
 			return err
 		}
 	}
@@ -84,25 +93,19 @@ func formatBlock(out io.Writer, blk *Block) error {
 	return nil
 }
 
-func formatInstr(out io.Writer, x Instruction) error {
-	switch instr := x.(type) {
-	case *Value:
-		if _, err := fmt.Fprintf(out, "    v%v : %v = %v", instr.ID, instr.Type, instr.Op); err != nil {
-			return err
-		}
+func (v *Value) Format(out io.Writer) error {
+	var err error
+	if v.Type == nil {
+		_, err = fmt.Fprintf(out, "v%v = %v", v.ID, v.Op)
+	} else {
+		_, err = fmt.Fprintf(out, "v%v : %v = %v", v.ID, v.Type, v.Op)
+	}
+	if err != nil {
+		return err
+	}
 
-		for _, arg := range instr.Args {
-			if _, err := fmt.Fprintf(out, " v%v", getInstrID(arg)); err != nil {
-				return err
-			}
-		}
-
-		if _, err := fmt.Fprintln(out); err != nil {
-			return err
-		}
-
-	case *Const:
-		if _, err := fmt.Fprintf(out, "    v%v : %v = %v\n", instr.ID, instr.Type, instr.Value); err != nil {
+	for _, arg := range v.Args {
+		if _, err := fmt.Fprintf(out, " v%v", arg.GetID()); err != nil {
 			return err
 		}
 	}
@@ -110,13 +113,7 @@ func formatInstr(out io.Writer, x Instruction) error {
 	return nil
 }
 
-func getInstrID(instr Instruction) ID {
-	switch x := instr.(type) {
-	case *Value:
-		return x.ID
-	case *Const:
-		return x.ID
-	default:
-		panic("invalid instruction type")
-	}
+func (c *Const) Format(out io.Writer) error {
+	_, err := fmt.Fprintf(out, "v%v : %v = %v\n", c.ID, c.Type, c.Value)
+	return err
 }
