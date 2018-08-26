@@ -103,6 +103,10 @@ func newFuncObj(fn *ast.FuncDecl, typ Type, scope *Scope) *Function {
 	}
 }
 
+func (fn *Function) Declaration() *ast.FuncDecl {
+	return fn.node.(*ast.FuncDecl)
+}
+
 func (fn *Function) Signature() types.Signature {
 	return fn.Type().(types.Signature)
 }
