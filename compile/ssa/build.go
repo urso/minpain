@@ -1,8 +1,12 @@
 package ssa
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/urso/minpain/ast"
 	"github.com/urso/minpain/check"
+	"github.com/urso/minpain/constant"
 	"github.com/urso/minpain/types"
 )
 
@@ -47,13 +51,36 @@ func Build(info *check.Info, script *ast.Script) (*Program, error) {
 		phiUsers:       map[*Value][]*Value{},
 	}
 
+	// build functions
 	for _, fn := range info.Functions {
 		if err := buildFn(st, fn); err != nil {
 			return nil, err
 		}
 	}
 
-	panic("TODO")
+	// build main program
+	funcs := make(map[string]*Func, len(st.funcs))
+	for _, fn := range st.funcs {
+		funcs[fn.Name] = fn
+	}
+
+	progam := &Program{Funcs: funcs}
+	progam.Entry = progam.newBlock()
+
+	st.fn = nil
+	st.block = progam.Entry
+	for _, node := range script.Program {
+		stmt, ok := node.(ast.Stmt)
+		if !ok {
+			continue // filter out function definitions
+		}
+
+		if err := buildStmt(st, stmt); err != nil {
+			return nil, err
+		}
+	}
+
+	return progam, nil
 }
 
 func buildFn(st *bldState, info *check.Function) error {
@@ -76,13 +103,150 @@ func buildFn(st *bldState, info *check.Function) error {
 		st.writeVar(arg.ID, entry, value)
 	}
 
-	panic("TODO")
+	return buildStmt(st, decl.Body)
+}
+
+func buildStmts(st *bldState, stmts []ast.Stmt) error {
+	for _, stmt := range stmts {
+		if err := buildStmt(st, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildStmt(st *bldState, node ast.Stmt) error {
+	switch stmt := node.(type) {
+	case *ast.BlockStmt:
+		return buildStmts(st, stmt.Stmts)
+
+	case *ast.Try:
+		panic("TODO")
+
+	case *ast.IfStmt:
+		panic("TODO: build if stmt")
+
+	case *ast.BranchStmt:
+		panic("TODO: build break/continue stmt")
+
+	case *ast.ReturnStmt:
+		panic("TODO: build return stmt")
+
+	case *ast.ThrowStmt:
+		panic("TOOD: build throw stmt")
+
+	case *ast.Loop:
+		panic("TODO: build loop stmt")
+
+	case *ast.EachLoop:
+		panic("TODO: build eachloop stmt")
+
+	case *ast.Decl:
+		panic("TODO: init declararation")
+
+	case ast.Expr:
+		_, err := buildExpr(st, stmt)
+		return err
+
+	default:
+		panic(fmt.Errorf("unhandled stmt: %v", stmt))
+	}
+}
+
+func buildExpr(st *bldState, node ast.Expr) (Instruction, error) {
+	switch expr := node.(type) {
+	case *ast.ListInit:
+		panic("TODO: list init")
+
+	case *ast.MapInit:
+		panic("TODO: map init")
+
+	case *ast.Ident: // variable access
+		panic("TODO")
+
+	case *ast.Assign:
+		panic("TODO: assign value")
+
+	case *ast.CastExpr:
+		panic("TODO: cast expr")
+
+	case *ast.CondExpr:
+		panic("TODO: cond expr")
+
+	case *ast.UnaryOp:
+		panic("TODO: unary op")
+
+	case *ast.BinOp:
+		panic("TODO: binop")
+
+	case *ast.Literal:
+		return buildLit(st, expr)
+
+	case *ast.Call:
+		panic("TODO: call")
+
+	case *ast.FieldAccess:
+		panic("TODO: field access")
+
+	case *ast.IdxAccess:
+		panic("TODO: index access")
+
+	case *ast.Access:
+		panic("TODO: access")
+
+	case *ast.NewArray:
+		panic("TODO: new array")
+
+	case *ast.Lambda:
+		panic("TODO: lambda")
+
+	case *ast.Ref:
+		panic("TODO: ref")
+
+	default:
+		panic(fmt.Errorf("unhandled expression type: %v", node))
+	}
+}
+
+func buildLit(st *bldState, lit *ast.Literal) (Instruction, error) {
+	var val constant.Value
+
+	switch lit.Kind {
+	case ast.LitBool:
+		val = constant.Boolean(lit.Value == "true")
+
+	case ast.LitInt:
+		i, err := strconv.ParseInt(lit.Value, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		val = constant.Number(i)
+
+	case ast.LitString:
+		val = constant.Str(lit.Value)
+
+	default:
+		panic(fmt.Errorf("unhandled literal type: %v", lit.Kind))
+	}
+
+	t := st.info.Types.Expected[lit]
+	if t == nil {
+		t = st.info.Types.Actual[lit]
+	}
+
+	c := st.newConst(st.block, t, val)
+	c.Pos = lit.Pos()
+	return c, nil
 }
 
 func (st *bldState) newValue(b *Block, op Op, t types.Type, args ...Instruction) *Value {
 	v := b.newValue(op, t, args...)
 	st.indexPhiUsers(v)
 	return v
+}
+
+func (st *bldState) newConst(b *Block, t types.Type, val constant.Value) *Const {
+	return b.newConst(t, val)
 }
 
 func (st *bldState) newPhi(b *Block, t types.Type, args ...Instruction) *Value {
@@ -118,121 +282,6 @@ func (st *bldState) newFunc(info *check.Function) *Func {
 	return fn
 }
 
-func (st *bldState) writeVar(variable *ast.Ident, blk *Block, val *Value) {
-	m := st.currentDef[variable]
-	if m == nil {
-		m = map[*Block]*Value{}
-		st.currentDef[variable] = m
-	}
-	m[blk] = val
-}
-
-func (st *bldState) readVar(variable *ast.Ident, blk *Block) *Value {
-	blocks := st.currentDef[variable]
-	if blocks != nil {
-		if val := blocks[blk]; val != nil {
-			return val
-		}
-	}
-
-	return st.readVarRecursive(variable, blk)
-}
-
-func (st *bldState) readVarRecursive(variable *ast.Ident, blk *Block) (val *Value) {
-	if !st.isBlockSealed(blk) {
-		// incomplete CFG
-		val = st.newPhi(blk, nil)
-		st.addIncompletePhi(variable, blk, val)
-	} else if blk.NumPredecessors() == 1 {
-		// If block has only one predecessor, no phi is needed
-		val = st.readVar(variable, blk.Predecssor(0))
-	} else {
-		// Blocks is already sealed, but variable is unknown:
-		//   -> break potential cycle with operandless phi
-		val = st.newPhi(blk, nil)
-		st.writeVar(variable, blk, val)        // write phi variable, so to break recursion on visited nodes
-		val = st.addPhiOperands(variable, val) // <- recurse into predecessor blocks
-	}
-
-	st.writeVar(variable, blk, val)
-	return val
-}
-
-func (st *bldState) addPhiOperands(variable *ast.Ident, phi *Value) *Value {
-	blk := phi.Block()
-	for i := 0; i < blk.NumPredecessors(); i++ {
-		pred := blk.Predecssor(i)
-		val := st.readVar(variable, pred) // recursively read variable from predecessors
-		phi.AppendArg(val)
-	}
-
-	// check if we can cleanup block after all phi instructions have been generated
-	return st.tryRemoveTrivialPhi(phi)
-}
-
-func (st *bldState) tryRemoveTrivialPhi(phi *Value) *Value {
-	trivial, orig := isTrivialPhi(phi)
-	if !trivial {
-		return phi
-	}
-
-	// Phi instruction is unreachable or in function entry block if 'orig == nil'
-	// Otherwise orig is the only unique variable used by phi.
-	if orig == nil {
-		orig = &Value{
-			ID: phi.Block().Parent.valueIDs.next(),
-			Op: OpUndef,
-		}
-	}
-
-	// replace phi with orig
-	users := st.phiUsers[phi]
-	delete(st.phiUsers, phi)
-
-	for _, user := range users {
-		if user == phi {
-			continue
-		}
-
-		for i, arg := range user.Args {
-			if arg == phi {
-				user.Args[i] = orig
-			}
-		}
-	}
-
-	// phi instructions using the current phi might have become trivial as well
-	// -> recursively try to remove these phi instructions as well
-	for _, user := range users {
-		if user.Op != OpPhi {
-			continue
-		}
-
-		st.tryRemoveTrivialPhi(user)
-	}
-
-	return orig
-}
-
-// isTrivialPhi checks if phi is trivial. Phi is trivial iff it references itself and one
-// other value v any number of times.
-func isTrivialPhi(phi *Value) (bool, *Value) {
-	var other *Value
-	for _, arg := range phi.Args {
-		if arg == phi {
-			continue // self-reference
-		}
-		if arg == other {
-			continue // repeated variable reference
-		}
-
-		// phi merges at least 2 unique values -> not trivial
-		return false, nil
-	}
-
-	return true, other
-}
-
 func (st *bldState) isBlockSealed(b *Block) bool {
 	_, exists := st.sealedBlocks[b]
 	return exists
@@ -250,13 +299,4 @@ func (st *bldState) sealBlock(b *Block) {
 	}
 
 	st.sealedBlocks[b] = struct{}{}
-}
-
-func (st *bldState) addIncompletePhi(variable *ast.Ident, b *Block, phi *Value) {
-	blk := st.incompletePhis[b]
-	if blk == nil {
-		blk = map[*ast.Ident]*Value{}
-		st.incompletePhis[b] = blk
-	}
-	blk[variable] = phi
 }
