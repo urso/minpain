@@ -235,11 +235,11 @@ func (n *Ident) Storable() bool {
 
 func (n *ListInit) Pos() Pos  { return n.Start }
 func (_ *ListInit) exprNode() {}
-func (_ *ListInit) stmtNode() {}
+func (_ *ListInit) stmtNode() {} // TODO: check if these should be expressions only
 
 func (n *MapInit) Pos() Pos  { return n.Start }
 func (_ *MapInit) exprNode() {}
-func (_ *MapInit) stmtNode() {}
+func (_ *MapInit) stmtNode() {} // TODO: check if these should be expressions only
 
 func (n *Assign) Pos() Pos  { return n.OpPos }
 func (_ *Assign) exprNode() {}
@@ -260,6 +260,7 @@ func (_ *BinOp) exprNode() {}
 
 func (n *Literal) Pos() Pos  { return n.ValuePos }
 func (_ *Literal) exprNode() {}
+func (_ *Literal) stmtNode() {} // TODO: remove me
 
 func (n *Call) Pos() Pos  { return n.CallPos }
 func (_ *Call) exprNode() {}
