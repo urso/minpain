@@ -5,9 +5,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/urso/minpain/ast/print"
 	"github.com/urso/minpain/errors"
 	"github.com/urso/minpain/parser"
-	"github.com/urso/minpain/print"
 )
 
 var debug = false

@@ -6,8 +6,9 @@ import (
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"github.com/urso/minpain/ast"
+	"github.com/urso/minpain/ast/print"
+
 	pantlr "github.com/urso/minpain/parser/internal/parser"
-	"github.com/urso/minpain/print"
 )
 
 type Parser struct {

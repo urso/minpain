@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/urso/minpain/ast"
+	"github.com/urso/minpain/ast/print"
 	"github.com/urso/minpain/check"
 	"github.com/urso/minpain/errors"
 	"github.com/urso/minpain/parser"
-	"github.com/urso/minpain/print"
 	"github.com/urso/minpain/types"
 )
 
